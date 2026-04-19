@@ -1,0 +1,406 @@
+# Chat API Specification
+
+**Feature**: 004-ai-todo-chatbot
+**Date**: 2026-03-27
+**Purpose**: Define OpenAPI specification for the chat endpoint
+
+---
+
+## Overview
+
+The Chat API enables natural language interaction with the todo management system. Users send messages and receive AI-generated responses with tool execution results.
+
+**Endpoint**: `POST /api/{user_id}/chat`
+
+**Authentication**: JWT Bearer token required in `Authorization` header
+
+---
+
+## OpenAPI Specification
+
+```yaml
+openapi: 3.0.3
+info:
+  title: AI Todo Chatbot API
+  description: Natural language interface for todo management via AI agent
+  version: 1.0.0
+  contact:
+    name: Hackathon Phase III Team
+
+servers:
+  - url: http://localhost:8000
+    description: Development server
+  - url: https://api.example.com
+    description: Production server
+
+tags:
+  - name: Chat
+    description: AI-powered chat endpoint for todo management
+
+paths:
+  /api/{user_id}/chat:
+    post:
+      tags:
+        - Chat
+      summary: Chat with AI todo assistant
+      description: |
+        Send a natural language message to the AI agent. The agent will:
+        1. Interpret user intent
+        2. Call appropriate MCP tools
+        3. Return a response with confirmation of actions taken
+        
+        All operations are scoped to the authenticated user.
+      operationId: chatWithAssistant
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Authenticated user ID (must match JWT token)
+        - name: X-Conversation-ID
+          in: header
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Optional conversation ID for continuity. If not provided, a new conversation is created.
+      
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - message
+              properties:
+                message:
+                  type: string
+                  minLength: 1
+                  maxLength: 10000
+                  description: User's natural language message
+                conversation_id:
+                  type: string
+                  format: uuid
+                  description: Optional conversation ID (alternative to header)
+            
+            examples:
+              add_task:
+                summary: Add a new task
+                value:
+                  message: "Add task buy groceries tomorrow at 3pm"
+              list_tasks:
+                summary: List pending tasks
+                value:
+                  message: "Show me my pending tasks"
+              complete_task:
+                summary: Complete a task
+                value:
+                  message: "Mark buy groceries as done"
+      
+      responses:
+        200:
+          description: Successful chat response with AI message and tool calls
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatResponse'
+              examples:
+                task_created:
+                  summary: Task created successfully
+                  value:
+                    conversation_id: "550e8400-e29b-41d4-a716-446655440000"
+                    response: "I've added 'buy groceries' to your tasks for tomorrow at 3pm."
+                    tool_calls:
+                      - tool: "add_task"
+                        input:
+                          title: "buy groceries"
+                          due_date: "2026-03-28T15:00:00Z"
+                          priority: "medium"
+                        output:
+                          success: true
+                          task:
+                            id: "660e8400-e29b-41d4-a716-446655440001"
+                            title: "buy groceries"
+                            is_completed: false
+                task_list:
+                  summary: List tasks
+                  value:
+                    conversation_id: "550e8400-e29b-41d4-a716-446655440000"
+                    response: "You have 3 pending tasks: 1) Buy groceries (due tomorrow), 2) Call dentist, 3) Finish report"
+                    tool_calls:
+                      - tool: "list_tasks"
+                        input:
+                          status: "pending"
+                        output:
+                          success: true
+                          tasks: [...]
+                          count: 3
+        
+        400:
+          description: Bad request - invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Invalid request"
+                message: "Message is required"
+                detail: "Field 'message' is required in request body"
+        
+        401:
+          description: Unauthorized - invalid or missing JWT token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Unauthorized"
+                message: "Invalid or missing authentication token"
+        
+        403:
+          description: Forbidden - user_id mismatch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Forbidden"
+                message: "User ID in token does not match URL parameter"
+        
+        404:
+          description: Not found - task or conversation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Not Found"
+                message: "Task not found or does not belong to user"
+        
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Internal Server Error"
+                message: "An unexpected error occurred"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token issued by Better Auth. Include in Authorization header as "Bearer <token>"
+  
+  schemas:
+    ChatResponse:
+      type: object
+      required:
+        - conversation_id
+        - response
+        - tool_calls
+      properties:
+        conversation_id:
+          type: string
+          format: uuid
+          description: Conversation ID for continuity in subsequent requests
+        response:
+          type: string
+          description: AI-generated natural language response
+        tool_calls:
+          type: array
+          items:
+            $ref: '#/components/schemas/ToolCall'
+          description: List of MCP tools invoked during this request
+    
+    ToolCall:
+      type: object
+      required:
+        - tool
+        - input
+        - output
+      properties:
+        tool:
+          type: string
+          enum: [add_task, list_tasks, update_task, complete_task, delete_task]
+          description: Name of the MCP tool called
+        input:
+          type: object
+          description: Input parameters passed to the tool
+        output:
+          type: object
+          description: Output returned by the tool
+    
+    Error:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error type
+        message:
+          type: string
+          description: Human-readable error message
+        detail:
+          type: string
+          description: Additional error details (optional)
+
+```
+
+---
+
+## Request Flow
+
+```
+1. Frontend → POST /api/{user_id}/chat
+   Headers:
+     Authorization: Bearer <jwt_token>
+     X-Conversation-ID: <optional_conversation_id>
+   Body:
+     { "message": "Add task buy groceries" }
+
+2. Backend validates JWT token
+   - Verify signature using BETTER_AUTH_SECRET
+   - Extract user_id from token
+   - Validate user_id matches URL parameter
+
+3. Fetch or create conversation
+   - If conversation_id provided: load from DB
+   - Else: create new conversation
+
+4. Load conversation history
+   - Fetch all messages for conversation
+   - Build context for agent
+
+5. Execute agent with tools
+   - Agent processes message
+   - Agent selects appropriate MCP tool(s)
+   - Tools execute with user validation
+
+6. Store messages
+   - Save user message to DB
+   - Save assistant response to DB
+
+7. Return response
+   - conversation_id for continuity
+   - response text
+   - tool_calls array
+```
+
+---
+
+## Authentication
+
+**JWT Token Requirements**:
+- Issued by Better Auth service
+- Signed with shared secret (BETTER_AUTH_SECRET)
+- Contains user_id and email in payload
+- Must not be expired
+
+**Token Verification**:
+```python
+from jose import jwt, JWTError
+
+try:
+    payload = jwt.decode(
+        token,
+        settings.BETTER_AUTH_SECRET,
+        algorithms=["HS256"]
+    )
+    user_id = payload.get("user_id")
+    email = payload.get("email")
+except JWTError:
+    raise HTTPException(status_code=401, detail="Invalid token")
+```
+
+**User ID Validation**:
+```python
+if token_user_id != url_user_id:
+    raise HTTPException(status_code=403, detail="User ID mismatch")
+```
+
+---
+
+## Error Codes
+
+| Status Code | Meaning | When Returned |
+|-------------|---------|---------------|
+| 400 | Bad Request | Missing message, invalid JSON, malformed input |
+| 401 | Unauthorized | Missing JWT, invalid signature, expired token |
+| 403 | Forbidden | User ID in token doesn't match URL parameter |
+| 404 | Not Found | Task/conversation not found or doesn't belong to user |
+| 500 | Internal Error | Database error, agent error, unexpected exception |
+
+---
+
+## Rate Limiting (Future Enhancement)
+
+**Proposed Limits**:
+- 100 requests per minute per user
+- 1000 requests per hour per user
+
+**Headers**:
+- `X-RateLimit-Limit`: Maximum requests allowed
+- `X-RateLimit-Remaining`: Requests remaining
+- `X-RateLimit-Reset`: Unix timestamp when limit resets
+
+---
+
+## Testing Examples
+
+### cURL Example
+
+```bash
+curl -X POST http://localhost:8000/api/550e8400-e29b-41d4-a716-446655440000/chat \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Add task call dentist tomorrow at 3pm"
+  }'
+```
+
+### Python Example
+
+```python
+import requests
+
+url = "http://localhost:8000/api/550e8400-e29b-41d4-a716-446655440000/chat"
+headers = {
+    "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "Content-Type": "application/json"
+}
+data = {
+    "message": "Show me my pending tasks"
+}
+
+response = requests.post(url, headers=headers, json=data)
+print(response.json())
+```
+
+### JavaScript Example
+
+```javascript
+const response = await fetch('/api/550e8400-e29b-41d4-a716-446655440000/chat', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    message: 'Add task buy groceries'
+  })
+});
+
+const result = await response.json();
+console.log(result);
+```

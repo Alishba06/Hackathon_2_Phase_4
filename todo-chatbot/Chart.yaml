@@ -1,0 +1,13 @@
+apiVersion: v2
+name: hackathon-app
+description: A Helm chart for Hackathon Phase 2 - Next.js Frontend + FastAPI Backend
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - hackathon
+  - nextjs
+  - fastapi
+  - todo
+maintainers:
+  - name: Hackathon Team

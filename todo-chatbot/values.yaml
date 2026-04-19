@@ -1,0 +1,200 @@
+# Default values for hackathon-app
+# This is a YAML-formatted file for Minikube local deployment
+
+# Global settings
+global:
+  namespace: default
+  minikube: true
+
+# ==================== BACKEND CONFIGURATION ====================
+backend:
+  enabled: true
+  name: hackathon-backend
+  # For local Minikube deployment, use the exact image name loaded into Minikube
+  image:
+    repository: hackathon-backend
+    tag: latest
+    pullPolicy: IfNotPresent  # Use IfNotPresent for local images
+
+  # Minikube - use local images (no registry needed)
+  imagePullSecrets: []
+
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 8000
+    targetPort: 8000
+
+  # Resources for Minikube (limited resources)
+  resources:
+    limits:
+      cpu: "1000m"  # Increased for better performance
+      memory: "1024Mi"
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+
+  # Environment variables
+  env:
+    # Use your Neon database URL
+    DATABASE_URL: "postgresql://neondb_owner:npg_QxwPX3uAly9t@ep-twilight-violet-ahbkcefb-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require"
+    BACKEND_CORS_ORIGINS: '["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000", "http://hackathon.local"]'
+    USE_GROQ: "true"
+
+  # Probes - adjusted for local development
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 30  # Reduced for faster startup
+    periodSeconds: 20
+    timeoutSeconds: 10
+    failureThreshold: 3
+
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 15  # Reduced for faster startup
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  # Number of replicas for Minikube
+  replicaCount: 1
+
+  # Node selector for Minikube
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# ==================== FRONTEND CONFIGURATION ====================
+frontend:
+  enabled: true
+  name: hackathon-frontend
+  # For local Minikube deployment, use the exact image name loaded into Minikube
+  image:
+    repository: hackathon-frontend
+    tag: latest
+    pullPolicy: IfNotPresent  # Use IfNotPresent for local images
+
+  imagePullSecrets: []
+
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 3000
+    targetPort: 3000
+
+  # Resources for Minikube
+  resources:
+    limits:
+      cpu: "1000m"  # Increased for better performance
+      memory: "1024Mi"
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+
+  # Environment variables for Next.js
+  # For Minikube, use the internal service name for backend communication
+  env:
+    NEXT_PUBLIC_API_BASE_URL: "http://hackathon-app-backend:8000"
+    NEXT_PUBLIC_BETTER_AUTH_URL: "http://hackathon-app-backend:8000/api/auth"
+
+  # Probes - adjusted for local development
+  livenessProbe:
+    httpGet:
+      path: /
+      port: 3000
+    initialDelaySeconds: 30  # Increased for Next.js build time
+    periodSeconds: 20
+    timeoutSeconds: 10
+    failureThreshold: 3
+
+  readinessProbe:
+    httpGet:
+      path: /
+      port: 3000
+    initialDelaySeconds: 20  # Increased for Next.js build time
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  replicaCount: 1
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# ==================== INGRESS CONFIGURATION (Minikube) ====================
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"  # Increased for AI operations
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+
+  # For Minikube, use host-based routing
+  hosts:
+    - host: hackathon.local
+      paths:
+        - path: /api
+          pathType: Prefix
+          backend:
+            service:
+              name: hackathon-app-backend
+              port:
+                number: 8000
+        - path: /auth
+          pathType: Prefix
+          backend:
+            service:
+              name: hackathon-app-backend
+              port:
+                number: 8000
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: hackathon-app-frontend
+              port:
+                number: 3000
+
+  tls: []
+
+# ==================== SERVICE ACCOUNT ====================
+serviceAccount:
+  create: true
+  name: hackathon-service-account
+  annotations: {}
+  automount: true
+
+# ==================== SECRETS ====================
+# For sensitive data (will be created as Kubernetes Secret)
+secrets:
+  enabled: true
+  betterAuthSecret: "hackathon-super-secret-jwt-key-change-in-production"
+  groqApiKey: "YOUR_GROQ_API_KEY_HERE"
+
+# ==================== CONFIGMAP ====================
+configMap:
+  enabled: true
+
+# ==================== AUTOSCALING (Disabled for Minikube) ====================
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 2
+  targetCPUUtilizationPercentage: 80
+
+# ==================== HEALTH CHECKS ====================
+healthCheck:
+  enabled: true
+  path: /health
+
+# ==================== ADDITIONAL VOLUMES ====================
+volumes: []
+volumeMounts: []

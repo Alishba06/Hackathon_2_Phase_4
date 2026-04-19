@@ -1,0 +1,86 @@
+========================================
+Hackathon App Deployment Complete!
+========================================
+
+Thank you for installing {{ .Chart.Name }}.
+
+Release Name: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+Chart Version: {{ .Chart.Version }}
+App Version: {{ .Chart.AppVersion }}
+
+========================================
+Access Your Application
+========================================
+
+{{- if .Values.ingress.enabled }}
+1. VIA INGRESS (Recommended for Minikube):
+
+   Add the following line to your hosts file:
+   - Windows: C:\Windows\System32\drivers\etc\hosts (Run as Administrator)
+   - Linux/Mac: /etc/hosts
+
+   Entry: $(minikube ip) hackathon.local
+
+   Then access:
+   - Frontend: http://hackathon.local
+   - Backend API: http://hackathon.local/api
+   - Backend Docs: http://hackathon.local/docs
+
+{{- end }}
+
+2. VIA PORT FORWARD:
+
+   Run these commands in separate terminals:
+
+   # Frontend
+   kubectl port-forward service/{{ include "hackathon-app.frontend.fullname" . }} 3000:3000
+
+   # Backend
+   kubectl port-forward service/{{ include "hackathon-app.backend.fullname" . }} 8000:8000
+
+   Then access:
+   - Frontend: http://localhost:3000
+   - Backend: http://localhost:8000/docs
+
+3. VIA MINIKUBE SERVICE:
+
+   minikube service {{ include "hackathon-app.frontend.fullname" . }}
+   minikube service {{ include "hackathon-app.backend.fullname" . }}
+
+========================================
+Check Deployment Status
+========================================
+
+# View pods
+kubectl get pods -l app.kubernetes.io/instance={{ .Release.Name }}
+
+# View services
+kubectl get services -l app.kubernetes.io/instance={{ .Release.Name }}
+
+# View ingress
+kubectl get ingress -l app.kubernetes.io/instance={{ .Release.Name }}
+
+# View logs
+kubectl logs -l app.kubernetes.io/component=backend
+kubectl logs -l app.kubernetes.io/component=frontend
+
+========================================
+Troubleshooting
+========================================
+
+# Describe pods (if having issues)
+kubectl describe pods -l app.kubernetes.io/instance={{ .Release.Name }}
+
+# Run Helm tests
+helm test {{ .Release.Name }}
+
+========================================
+Uninstall
+========================================
+
+To uninstall this release:
+
+helm uninstall {{ .Release.Name }}
+
+========================================

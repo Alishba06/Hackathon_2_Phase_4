@@ -1,0 +1,18 @@
+fastapi
+sqlmodel
+pydantic
+pydantic-settings
+uvicorn
+psycopg2-binary
+alembic
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+pytest
+httpx
+bcrypt==3.2.2
+cryptography
+email-validator
+# AI-Powered Chatbot (Phase III)
+openai-agents
+mcp
